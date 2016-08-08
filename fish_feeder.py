@@ -4,13 +4,17 @@
 # many times each day we want to feed them.
 #
 import datetime
+import time
+import logging
+
+import RPi.GPIO as GPIO
 
 # Fish feeder timing, based on different fish foods.
 # Timing is seconds per gram of food.
 # These will need to be changed depending on individual feeder parameters
 FEED_RATES = { 'AM300': 0.42,
-               'AM400': 0.75,
-               'AM4000': 0.9 }
+               'AM400': 0.31,
+               'AM4000': 0.25 }
 
 # Fish feed rates per day
 # Based on table at https://lakewaytilapia.com/Tilapia-Feeding-Guide.php
@@ -47,6 +51,34 @@ FEED_AMOUNTS = FEED_AMOUNT_AM300 + FEED_AMOUNT_AM400 + FEED_AMOUNT_AM4000
 
 FEED_DAYS = len(FEED_AMOUNTS)
 
+#
+# Calculate then the next feed time is, based on the feeding schedule and the current time.
+#
+def next_feed_time(feed_times, nowtime):
+    now = time.strptime(nowtime,'%H:%M')
+
+    for i in range(len(feed_times)):
+        t1 = time.strptime(feed_times[i], '%H:%M')
+
+        if t1 == now:
+            next_feed = feed_times[i]   # It is exactly the next feed time
+            break
+        # If we are > the last time, then the next time is the first time
+        elif i == len(feed_times)-1:
+            next_feed = feed_times[0]
+            break
+        else:
+            t2 = time.strptime(feed_times[i+1], '%H:%M')
+            if now >= t1 and now < t2:
+                next_feed = feed_times[i+1]
+                break
+
+    return next_feed
+
+# Calculate how long the fish feeder should run, based
+# on our feeding schedule, the number of fish and how
+# many times each day we want to feed them.
+#
 # Inputs
 #   Start Day
 #   Number of Fish
@@ -86,3 +118,13 @@ def get_feeding(start_date, number_of_fish, feeds_per_day):
     feed_duration = feed_per_feeding / FEED_RATES[feed_type]
 
     return (day_number,feed_type,feed_today,feed_per_feeding,feed_duration)
+
+def feed_fish(feed_duration, feed_amount, feed_type, feeder_gpio):
+
+    logging.info('Feeding %.1fg of %s over %dseconds',feed_amount,feed_type,feed_duration)
+
+    GPIO.output(feeder_gpio,True)
+    time.sleep(feed_duration)
+    GPIO.output(feeder_gpio,False)
+
+    return()

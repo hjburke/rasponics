@@ -1,12 +1,22 @@
+#!/usr/bin/python
 import datetime
 import time
+import logging
 
 import Adafruit_DHT as DHT
-import Adafruit_CharLCD as LCD
 import RPi.GPIO as GPIO
 from w1thermsensor import W1ThermSensor
 
-import fish_feeder
+import fish_feeder as FEEDER
+import lcd_display as DISPLAY
+import log_to_google as GLOG
+
+#
+# Setup logging
+#
+logging.basicConfig(filename='/var/log/rasponics.log',level=logging.INFO,format='%(asctime)s %(message)s',datefmt='%Y-%m-%d %I:%M:%S %p')
+logging.info('Rasponics v1.0.0 starting')
+DISPLAY.update(0, 'Rasponics v1.0.0','(c) Burketech')
 
 # Define the internal temp/humidity sensor
 sensor = DHT.DHT22
@@ -22,6 +32,7 @@ FISH_COUNT = 50
 
 # Feedings 
 FEED_TIMES = [ '0:00', '4:00', '8:00', '12:00', '16:00', '20:00' ]
+#FEED_TIMES = [ '0:00', '4:00', '8:00', '18:15', '17:58', '20:00' ]
 FEED_PER_DAY = len(FEED_TIMES)
 
 # Initialize the GPIO
@@ -35,64 +46,39 @@ GPIO.setmode(GPIO.BCM) ## Use board pin numbering
 
 GPIO.setup(Relay4, GPIO.OUT)
 
-# Initialize the LCD using the pins
-lcd = LCD.Adafruit_CharLCDPlate()
-
-def next_feed_time(feed_times, nowtime):
-    now = time.strptime(nowtime,'%H:%M')
-
-    for i in range(len(feed_times)):
-        t1 = time.strptime(feed_times[i], '%H:%M')
-
-        if t1 == now:
-            next_feed = feed_times[i]	# It is exactly the next feed time
-            break
-        # If we are > the last time, then the next time is the first time
-        elif i == len(feed_times)-1:
-            next_feed = feed_times[0]
-            break
-        else:
-            t2 = time.strptime(feed_times[i+1], '%H:%M')
-            if now >= t1 and now < t2:
-                next_feed = feed_times[i+1]
-                break
-
-    return next_feed
-
 # Prevent a feeding at start time, if we happen to restart on a feed time
 last_feeding = time.strftime('%H:%M',time.localtime(time.time()))
 
 # Initialize our feeding data 
-(day_number,feed_type,feed_today,feed_per_feeding,feed_duration) = fish_feeder.get_feeding(START_DATE,FISH_COUNT,FEED_PER_DAY)
-
-# LCD Message number
-n = 0
-LCDMessage = ['Rasponics v1.0.0\n(c) Burketech','','','']
+(day_number,feed_type,feed_today,feed_per_feeding,feed_duration) = FEEDER.get_feeding(START_DATE,FISH_COUNT,FEED_PER_DAY)
 
 while True:
-	LCDMessage[1] = "Day %d Feeding\n%dg of %s" % (day_number, feed_today, feed_type)
+	DISPLAY.update(1, "Day %d Feeding" % day_number, "%dg of %s" % (feed_today, feed_type))
 
 	nowtime = time.strftime('%H:%M',time.localtime(time.time()))
 	#nowtime = '0:00'
-	next_feeding = next_feed_time(FEED_TIMES,nowtime)
+	next_feeding = FEEDER.next_feed_time(FEED_TIMES,nowtime)
 
 	if next_feeding == last_feeding :
-		LCDMessage[2] = "Just fed the fish\n%d grams of %s" % (feed_per_feeding, feed_type)
+		DISPLAY.update(2,'Just fed the fish',"%dg of %s" % (feed_per_feeding, feed_type))
 	else:
-		LCDMessage[2] = "Time %s\nNext Feed %s" % (nowtime, next_feeding)
+		DISPLAY.update(2,"Time %11s" % nowtime, "Next Feed %6s" % next_feeding)
 
 	if nowtime == next_feeding and next_feeding != last_feeding :
-		(day_number,feed_type,feed_today,feed_per_feeding,feed_duration) = fish_feeder.get_feeding(START_DATE,FISH_COUNT,FEED_PER_DAY)
 
-		tmpMsg = "Feeding %i secs\n%dg of %s" % (feed_duration, feed_per_feeding, feed_type)
-	
-		lcd.clear()
-		lcd.message(tmpMsg)
-		print tmpMsg
-		
-		GPIO.output(Relay4,True)
-		time.sleep(feed_duration)
-		GPIO.output(Relay4,False)
+		#
+		# Time to feed the fish
+		#
+
+		(day_number,feed_type,feed_today,feed_per_feeding,feed_duration) = FEEDER.get_feeding(START_DATE,FISH_COUNT,FEED_PER_DAY)
+
+		DISPLAY.show_now("Feeding %d secs" % feed_duration, "%.1fg of %s" % (feed_per_feeding, feed_type))
+
+		#
+		# Turn on the fish feeder for the calculated time
+		#	
+		FEEDER.feed_fish(feed_duration, feed_per_feeding, feed_type, Relay4)	
+		GLOG.log_to_google(datetime.datetime.now(), feed_type, "%.1f" % feed_per_feeding)
 
 		last_feeding = nowtime
 
@@ -104,14 +90,12 @@ while True:
 
 	if humidity is not None and temperature is not None:
 		temperature = temperature * 9/5.0 + 32
-		LCDMessage[3] = ('Air Temp={0:0.1f}F\nHumidity={1:0.1f}%'.format(temperature, humidity))
+		DISPLAY.update(3, 'Air Temp {0:6.1f}F'.format(temperature), 'Humidity {0:6.1f}%'.format(humidity))
 
+	#
 	# Display rotating message on LCD
-	lcd.clear()
-	lcd.message(LCDMessage[n])
-	print LCDMessage[n]
-	n = n + 1
-	if n == len(LCDMessage): n=0
+	#
+	DISPLAY.show_next()
 	
 	time.sleep(2)
 
