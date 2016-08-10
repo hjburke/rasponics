@@ -2,8 +2,8 @@ import Adafruit_CharLCD as LCD
 
 # LCD Message number
 msgid = 0
-LCDMessageLine1 = ['','','','']
-LCDMessageLine2 = ['','','','']
+LCDMessageLine1 = ['','','','','']
+LCDMessageLine2 = ['','','','','']
 
 # Initialize the LCD using the pins
 lcd = LCD.Adafruit_CharLCDPlate()

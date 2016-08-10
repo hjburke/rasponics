@@ -1,9 +1,11 @@
+import logging
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 GDOCS_OAUTH_JSON = '/home/hburke/rasponics/5b689121080b.json'
-GDOCS_SPREADSHEET_NAME = 'FeedLog'
-GDOCS_WORKSHEET_NAME = 'Feed Details'
+GDOCS_SPREADSHEET_NAME = 'RasponicsLog'
+GDOCS_FEEDING_WORKSHEET_NAME = 'Feed Details'
+GDOCS_TEMPS_WORKSHEET_NAME = 'Temperatures'
 
 def login_open_sheet(oauth_key_file, spreadsheet):
     """Connect to Google Docs spreadsheet and return the first worksheet."""
@@ -14,24 +16,21 @@ def login_open_sheet(oauth_key_file, spreadsheet):
         spreadsheet = gc.open(spreadsheet)
         return spreadsheet
     except Exception as ex:
-        print('Unable to login and get spreadsheet.  Check OAuth credentials, spreadsheet name, and make sure spreadsheet is shared to the client_email address in the OAuth .json file!')
-        print('Google sheet login failed with error:', ex)
+        logging.error('Unable to login and get spreadsheet.  Check OAuth credentials, spreadsheet name, and make sure spreadsheet is shared to the client_email address in the OAuth .json file!')
+        logging.error('Google sheet login failed with error: %s' % ex)
 
-def log_to_google(logtime,feed_type,feed_amount):
+def log_feeding_to_google(logtime,feed_type,feed_amount):
 
     sht = login_open_sheet(GDOCS_OAUTH_JSON, GDOCS_SPREADSHEET_NAME)
-
-#    for worksheet in sht.worksheets():
-#        print worksheet.title
 
     #
     # Try to open the worksheet, if it fails then create it
     #
     try:
-        wks = sht.worksheet(GDOCS_WORKSHEET_NAME)
+        wks = sht.worksheet(GDOCS_FEEDING_WORKSHEET_NAME)
     except:
-        print "Sheet does not exist, creating"
-        wks = sht.add_worksheet(title=GDOCS_WORKSHEET_NAME, rows="1", cols="3")
+        logging.info('Worksheet %s does not exist, creating' % GDOCS_FEEDING_WORKSHEET_NAME)
+        wks = sht.add_worksheet(title=GDOCS_FEEDING_WORKSHEET_NAME, rows="1", cols="3")
 
         wks.update_cell(1,1,"Date")
         wks.update_cell(1,2,"Type")
@@ -43,5 +42,31 @@ def log_to_google(logtime,feed_type,feed_amount):
     try:
         wks.append_row((logtime, feed_type, feed_amount))
     except:
-        print('Append error')
+        logging.warning('Error appending a row to the feeding worksheet')
 
+def log_temps_to_google(logtime,air_temp, humidity, tank_temp, sump_temp):
+
+    sht = login_open_sheet(GDOCS_OAUTH_JSON, GDOCS_SPREADSHEET_NAME)
+
+    #
+    # Try to open the worksheet, if it fails then create it
+    #
+    try:
+        wks = sht.worksheet(GDOCS_TEMPS_WORKSHEET_NAME)
+    except:
+        logging.info('Worksheet %s does not exist, creating' % GDOCS_TEMPS_WORKSHEET_NAME)
+        wks = sht.add_worksheet(title=GDOCS_TEMPS_WORKSHEET_NAME, rows="1", cols="5")
+
+        wks.update_cell(1,1,"Date")
+        wks.update_cell(1,2,"Air Temp")
+        wks.update_cell(1,3,"Humidity")
+        wks.update_cell(1,4,"Tank Temp")
+        wks.update_cell(1,5,"Sump Temp")
+
+    #
+    # Add a row with the data
+    #
+    try:
+        wks.append_row((logtime, air_temp, humidity, tank_temp, sump_temp))
+    except:
+        logging.warning('Error appending a row to the feeding worksheet')
