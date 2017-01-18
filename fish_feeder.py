@@ -14,7 +14,8 @@ import RPi.GPIO as GPIO
 # These will need to be changed depending on individual feeder parameters
 FEED_RATES = { 'AM300': 0.42,
                'AM400': 0.31,
-               'AM4000': 0.25 }
+               'AM4000': 0.90 }
+#               'AM4000': 0.68 }
 
 # Fish feed rates per day
 # Based on table at https://lakewaytilapia.com/Tilapia-Feeding-Guide.php

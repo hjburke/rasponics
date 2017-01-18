@@ -69,4 +69,4 @@ def log_temps_to_google(logtime,air_temp, humidity, tank_temp, sump_temp):
     try:
         wks.append_row((logtime, air_temp, humidity, tank_temp, sump_temp))
     except:
-        logging.warning('Error appending a row to the feeding worksheet')
+        logging.warning('Error appending a row to the temperature worksheet')
