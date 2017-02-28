@@ -1,0 +1,32 @@
+import datetime
+
+# Number of fish to feed
+FISH_COUNT = 25
+
+# Start day
+START_DATE = datetime.date(2016,7,20)
+
+# Feeding Times
+FEED_TIMES = [ '00:00', '04:00', '08:00', '12:00', '16:00', '20:00' ]
+
+# Fish feeder timing, based on different fish foods.
+# Timing is seconds per gram of food.
+# These will need to be changed depending on individual feeder parameters
+FEED_RATES = { 'AM300': 0.42,
+               'AM400': 0.31,
+               'AM4000': 0.68 }
+
+# Refresh Times
+LCD_REFRESH = 5         # how frequently the LCD display is updated
+EQUIP_REFRESH = 5       # how frequently the equipment status is updated
+TEMP_REFRESH = 5*60     # how frequently the temperatures are read and recorded
+
+# Google Docs Settings
+GDOCS_OAUTH_JSON = '<path-to-json-file>'
+
+# REST API Settings
+api_base = 'http://api.<your-name-here>.com/api.php/'
+
+# DWEET.IO Settings
+dweet_id = '<your-id-here>'
+dweet_key = ''

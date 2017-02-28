@@ -9,16 +9,11 @@ import logging
 
 import RPi.GPIO as GPIO
 
-# Fish feeder timing, based on different fish foods.
-# Timing is seconds per gram of food.
-# These will need to be changed depending on individual feeder parameters
-FEED_RATES = { 'AM300': 0.42,
-               'AM400': 0.31,
-               'AM4000': 0.90 }
-#               'AM4000': 0.68 }
+import config
 
 # Fish feed rates per day
 # Based on table at https://lakewaytilapia.com/Tilapia-Feeding-Guide.php
+# This is grams per 100 tilapia
 
 # 28 days of AquaMax Fingerling Starter 300 1/16 sinking pellet
 FEED_AMOUNT_AM300 = [
@@ -116,7 +111,7 @@ def get_feeding(start_date, number_of_fish, feeds_per_day):
     feed_per_feeding = feed_today / feeds_per_day
 
     # How long should the fish feeder run for a given feeding
-    feed_duration = feed_per_feeding / FEED_RATES[feed_type]
+    feed_duration = feed_per_feeding / config.FEED_RATES[feed_type]
 
     return (day_number,feed_type,feed_today,feed_per_feeding,feed_duration)
 

@@ -23,7 +23,7 @@ import Adafruit_CharLCD as LCD
 # Constants
 LCD_WIDTH=16
 LCD_HEIGHT=2
-NUM_BUFFERS=5
+NUM_BUFFERS=6
 
 # Update in process flag
 uip = False
