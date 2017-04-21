@@ -1,0 +1,6 @@
+[Unit]
+Description=Aquaponics Automation Controller
+
+[Service]
+ExecStart=/home/hburke/rasponics/rasponics.py
+Restart=always
