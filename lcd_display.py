@@ -19,6 +19,7 @@ Continue to modify to support different dimension LCD's, right now some operatio
 """
 
 import Adafruit_CharLCD as LCD
+import threading
 
 # Constants
 LCD_WIDTH=16
@@ -26,7 +27,9 @@ LCD_HEIGHT=2
 NUM_BUFFERS=6
 
 # Update in process flag
-uip = False
+#uip = False
+
+lock = threading.Lock()
 
 # LCD Message number
 msgid = 0
@@ -54,13 +57,17 @@ def update(slot,*lines):
 def show_now(line1,line2):
     global uip
     # If an update is already in process, bomb out its not that important!
-    if uip is False:
-        uip = True
+    #if uip is False:
+    lock.acquire()
+    try:
+        #uip = True
         tmpMsg = line1 + "\n" + line2
         lcd.clear() 
         lcd.message(tmpMsg)
         _write_lcd_file(line1,line2)
-        uip = False
+        #uip = False
+    finally:
+        lock.release()
 
 #
 # Display next rotating message on LCD

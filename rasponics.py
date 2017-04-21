@@ -71,10 +71,12 @@ def GB_change(channel):
 
     x = GPIO.input(channel)
     if x:
+        GPIO.output(HW.Relay1,True)
         GB_direction = "^"
         GB_duration = int(nowtime - GB_time_rising)
         GB_time_rising = nowtime
     else:
+        GPIO.output(HW.Relay1,False)
         GB_direction = "v"
         GB_duration = int(nowtime - GB_time_falling)
         GB_time_falling = nowtime
@@ -153,6 +155,7 @@ threading.Thread(target=refresh_display).start()
 def update_equipment():
     global pump_status, airpump_status
 
+    logging.info("update_equpment: Enter")
     # Because we are wired for failsafe operation, pumps are on
     # when the GPIO's are LOW.
     pump_status = not GPIO.input(HW.water_pump)
@@ -160,6 +163,7 @@ def update_equipment():
 
     DLOG.dweet_update_equipment(pump_status,airpump_status)
 
+    logging.info("update_equpment: Exit")
     threading.Timer(config.EQUIP_REFRESH, update_equipment).start()
 
 threading.Thread(target=update_equipment).start()
@@ -214,23 +218,28 @@ while True:
     #
 
     if DISPLAY.is_select_pressed():
+        logging.info("Select button pressed")
         DISPLAY.show_now("Feeding %d secs" % feed_duration, "%.1fg of %s" % (feed_per_feeding, feed_type))
         FEEDER.feed_fish(feed_duration, feed_per_feeding, feed_type, HW.fish_feeder)
         GLOG.update_feeding_log(feed_type, feed_per_feeding)
 	RLOG.update_feeding_log(feed_type, feed_per_feeding)
 
     if DISPLAY.is_up_pressed():
+        logging.info("Up button pressed")
         GPIO.output(HW.water_pump,False)
-        DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
+        #DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
 
     if DISPLAY.is_down_pressed():
+        logging.info("Down button pressed")
         GPIO.output(HW.water_pump,True)
-        DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
+        #DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
 
     if DISPLAY.is_left_pressed():
+        logging.info("Left button pressed")
         GPIO.output(HW.air_pump,True)
-        DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
+        #DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
 
     if DISPLAY.is_right_pressed():
+        logging.info("Right button pressed")
         GPIO.output(HW.air_pump,False)
-        DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
+        #DLOG.dweet_update_equipment(0 if GPIO.input(HW.water_pump) else 1,0 if GPIO.input(HW.air_pump) else 1)
