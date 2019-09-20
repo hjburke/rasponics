@@ -27,7 +27,7 @@ startup_time = time.time()
 # Setup logging
 #
 logging.basicConfig(filename='/var/log/rasponics.log',level=logging.INFO,format='%(asctime)s %(message)s',datefmt='%Y-%m-%d %I:%M:%S %p')
-logging.info('Rasponics v1.0.0 starting')
+logging.info('Rasponics v1.1.0 starting')
 DISPLAY.update(0, 'Rasponics v1.1.0','(c) Burketech')
 
 # Initialize the GPIO
