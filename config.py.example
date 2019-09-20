@@ -1,13 +1,16 @@
 import datetime
 
 # Number of fish to feed
-FISH_COUNT = 25
+TANK1_FISH_COUNT = 25
+TANK2_FISH_COUNT = 50
 
-# Start day
-START_DATE = datetime.date(2016,7,20)
+# Start days
+TANK1_START_DATE = datetime.date(2016,7,20)
+TANK2_START_DATE = datetime.date(2017,12,30)
 
 # Feeding Times
-FEED_TIMES = [ '00:00', '04:00', '08:00', '12:00', '16:00', '20:00' ]
+TANK1_FEED_TIMES = [ '00:00', '04:00', '08:00', '12:00', '16:00', '20:00' ]
+TANK2_FEED_TIMES = [ '02:00', '06:00', '10:00', '14:00', '18:00', '22:00' ]
 
 # Fish feeder timing, based on different fish foods.
 # Timing is seconds per gram of food.

@@ -33,34 +33,18 @@ def update_status_log(air_temp,humidity,tank_top_temp,tank_bottom_temp,GB_durati
         "airpump_status":airpump_status
     }
 
-    #rc = send_to_db(db_status_log_table, payload)
     rc = HP.http_post(config.api_base+db_status_log_table, payload)
     logging.info("update_status_log: Exit")
     return rc
 
 def update_feeding_log(feed_type,feed_amount):
-    logging.info("update_feeding_log: Enter")
+    #logging.info("update_feeding_log: Enter")
     payload = {
         "logtime": time.strftime("%Y-%m-%d %H:%M", time.localtime(time.time())),
         "feed_type":feed_type,
         "feed_amount":'{0:3.1f}'.format(feed_amount)
     }
 
-    #rc = send_to_db(db_feeding_log_table, payload)
     rc = HP.http_post(config.api_base+db_feeding_log_table, payload)
-    logging.info("update_feeding_log: Exit")
+    #logging.info("update_feeding_log: Exit")
     return rc
-
-#def send_to_db(table_name, payload):
-#    lock.acquire()
-#    try:
-#        print "send_to_db: about to post {}".format(payload)
-#        response = requests.post(config.api_base+table_name, data=json.dumps(payload), headers={'content-type':'application/json'})
-#        rc = response.status_code
-#    except Exception as e:
-#	print "send_to_db: Error sending to rest API"
-#	rc =500
-#    finally:
-#        lock.release()
-#
-#    return rc

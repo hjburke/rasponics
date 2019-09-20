@@ -86,7 +86,7 @@ def next_feed_time(feed_times, nowtime):
 #   Feed per feeding (grams)
 #   Feed duration (seconds)
 
-def get_feeding(start_date, number_of_fish, feeds_per_day):
+def get_feeding(start_date, number_of_fish, feeds_per_day, feed_rates):
 
     # What feeding day are we on
     today = datetime.date.today()
@@ -111,7 +111,7 @@ def get_feeding(start_date, number_of_fish, feeds_per_day):
     feed_per_feeding = feed_today / feeds_per_day
 
     # How long should the fish feeder run for a given feeding
-    feed_duration = feed_per_feeding / config.FEED_RATES[feed_type]
+    feed_duration = feed_per_feeding / feed_rates[feed_type]
 
     return (day_number,feed_type,feed_today,feed_per_feeding,feed_duration)
 
