@@ -15,21 +15,25 @@ TANK2_FEED_TIMES = [ '02:00', '06:00', '10:00', '14:00', '18:00', '22:00' ]
 # Fish feeder timing, based on different fish foods.
 # Timing is seconds per gram of food.
 # These will need to be changed depending on individual feeder parameters
-FEED_RATES = { 'AM300': 0.42,
-               'AM400': 0.31,
-               'AM4000': 0.68 }
+TANK1_FEED_RATES = { 'AM300': 0.42,
+                     'AM400': 0.31,
+                     'AM4000': 0.90 }
+TANK2_FEED_RATES = { 'AM300': 0.42,
+                     'AM400': 0.31,
+                     'AM4000': 0.68 }
 
 # Refresh Times
 LCD_REFRESH = 5         # how frequently the LCD display is updated
 EQUIP_REFRESH = 5       # how frequently the equipment status is updated
 TEMP_REFRESH = 5*60     # how frequently the temperatures are read and recorded
+LOGGING_REFRESH = 1*60	# how frequently the status is logged to the db
+PH_REFRESH = 1*60       # how frequently the main taik pH is read and recorded
 
-# Google Docs Settings
-GDOCS_OAUTH_JSON = '<path-to-json-file>'
+# MQTT
 
-# REST API Settings
-api_base = 'http://api.<your-name-here>.com/api.php/'
-
-# DWEET.IO Settings
-dweet_id = '<your-id-here>'
-dweet_key = ''
+mqtt_host = '<mqtt-broker>'
+mqtt_port = 1883
+mqtt_user = '<mqtt-user>'
+mqtt_pass = '<mqtt-password>'
+mqtt_base_topic = 'rasponics/'
+mqtt_client = 'Rasponics''
