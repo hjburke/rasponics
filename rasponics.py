@@ -7,15 +7,13 @@ import threading
 import Adafruit_DHT as DHT
 import RPi.GPIO as GPIO
 from w1thermsensor import W1ThermSensor
+import Adafruit_ADS1x15
 
 import config
 import hwconfig as HW
 import fish_feeder as FEEDER
 import lcd_display as DISPLAY
-import log_to_google as GLOG
-import log_to_dweet as DLOG
-import log_to_rest_db as RLOG
-import log_to_thingspeak as TSLOG
+import mqtt as MQTT
 
 # Workaround for a Python threading bug with strptime function
 throwaway = datetime.datetime.strptime('20110101','%Y%m%d')
@@ -27,8 +25,8 @@ startup_time = time.time()
 # Setup logging
 #
 logging.basicConfig(filename='/var/log/rasponics.log',level=logging.INFO,format='%(asctime)s %(message)s',datefmt='%Y-%m-%d %I:%M:%S %p')
-logging.info('Rasponics v1.1.0 starting')
-DISPLAY.update(0, 'Rasponics v1.1.0','(c) Burketech')
+logging.info('Rasponics v1.2.0 starting')
+DISPLAY.update(0, 'Rasponics v1.2.0','(c) Burketech')
 
 # Initialize the GPIO
 GPIO.setwarnings(False)
@@ -42,6 +40,9 @@ GPIO.output(HW.tank1_fish_feeder,False)
 GPIO.output(HW.tank2_fish_feeder,False)
 
 GPIO.setup(HW.gb_water_sensor, GPIO.IN, pull_up_down=GPIO.PUD_UP )
+
+# Setup the ADC to read pH
+adc = Adafruit_ADS1x15.ADS1115()
 
 feedings = []
 # Prevent a feeding at start time, if we happen to restart on a feed time
@@ -60,6 +61,9 @@ airtemp = 0
 humidity = 0
 tanktoptemp = 0
 tankbtmtemp = 0
+
+# Setup variable to store pH
+ph = 0
 
 # Equipment status
 pump_status = 1
@@ -89,8 +93,8 @@ def GB_change(channel):
 
     DISPLAY.update(5, 'GB Cycle {} {d[0]:2}:{d[1]:02}'.format(GB_direction, d=divmod(GB_duration,60)), '{}'.format(time.strftime("%d %b %H:%M:%S",time.localtime(nowtime))))
 
-    # Realtime update of growbed change to DWEET
-    DLOG.dweet_update_growbed(GB_duration, GB_direction, nowtime)
+    # Realtime update of growbed change to MQTT
+    MQTT.publish_growbed(GB_duration, GB_direction, nowtime)
 
 GPIO.add_event_detect(HW.gb_water_sensor, GPIO.BOTH, callback=GB_change, bouncetime=200)
 
@@ -134,9 +138,6 @@ def get_temps():
 
     DISPLAY.update(4, 'Tank Top  {0:5.1f}F'.format(tanktoptemp), 'Tank Btm  {0:5.1f}F'.format(tankbtmtemp))
 
-    # Realtime update of temps to DWEET
-    DLOG.dweet_update_temps(airtemp, humidity, tanktoptemp, tankbtmtemp)
-
     # Start threading this every n seconds
     threading.Timer(config.TEMP_REFRESH, get_temps).start()
 
@@ -162,31 +163,101 @@ def update_equipment():
     pump_status = not GPIO.input(HW.water_pump)
     airpump_status = not GPIO.input(HW.air_pump)
 
-    # Realtime update of equipment to DWEET
-    delog = threading.Thread(target=DLOG.dweet_update_equipment, args=(pump_status,airpump_status))
-    delog.start()
-
     threading.Timer(config.EQUIP_REFRESH, update_equipment).start()
 
 threading.Thread(target=update_equipment).start()
 
 #
-# A repeating thread to log status to DB (via REST API) and Google Sheets
+# A repeating thread to read the main tank pH level
+#
+def read_ph():
+    global ph
+
+    reading = adc.read_adc(0,gain=1)
+    ph = 24.35-(reading/580)
+
+    threading.Timer(config.PH_REFRESH, read_ph).start()
+
+threading.Thread(target=read_ph).start()
+
+#
+# A repeating thread to log status to MQTT
 #
 def log_status():
     # Dont log until we have at least the air temp captured
     if (airtemp != 0):
-        RLOG.update_status_log(airtemp,humidity,tanktoptemp,tankbtmtemp,GB_duration,GB_direction,GB_last_transition,pump_status,airpump_status)
-        GLOG.update_status_log(airtemp,humidity,tanktoptemp,tankbtmtemp,GB_duration,GB_direction,GB_last_transition,pump_status,airpump_status)
-        TSLOG.update_status_log(airtemp,humidity,tanktoptemp,tankbtmtemp,pump_status,airpump_status)
+        MQTT.publish_status(airtemp,humidity,tanktoptemp,tankbtmtemp,GB_duration,GB_direction,GB_last_transition,pump_status,airpump_status,ph)
 
     threading.Timer(config.LOGGING_REFRESH, log_status).start()
 
 threading.Thread(target=log_status).start()
 
 #
+# Command to force status update
+#
+def state_cmd(client, userdata, message):
+    MQTT.publish_status(airtemp,humidity,tanktoptemp,tankbtmtemp,GB_duration,GB_direction,GB_last_transition,pump_status,airpump_status,ph)
+  
+#
+# Control the water pump
+#
+def pump_cmd(client, userdata, message):
+    global pump_status
+    if (message.payload == "ON"):
+        pump_status = 1
+        GPIO.output(HW.water_pump,False)
+        MQTT.publish_pump(True)
+        DISPLAY.show_now("Pump ON", "")
+    elif (message.payload == "OFF"):
+        pump_status = 0
+        GPIO.output(HW.water_pump,True)
+        MQTT.publish_pump(False)
+        DISPLAY.show_now("Pump OFF", "")
+    else:
+        logging.warning("Unknown pump cmd %s" % message.payload)
+
+#
+# Control the air pump
+#
+def airpump_cmd(client, userdata, message):
+    global airpump_status
+    if (message.payload == "ON"):
+        airpump_status = 1
+        GPIO.output(HW.air_pump,False)
+        MQTT.publish_airpump(True)
+        DISPLAY.show_now("Air Pump ON", "")
+    elif (message.payload == "OFF"):
+        airpump_status = 0
+        GPIO.output(HW.air_pump,True)
+        MQTT.publish_airpump(False)
+        DISPLAY.show_now("Air Pump OFF", "")
+    else:
+        logging.warning("Unknown airpump cmd %s" % message.payload)
+
+#
+# Control the fish feeder
+#
+def feeder_cmd(client, userdata, message):
+    tank = message.topic.split("/")[2]
+
+    if (tank == 'main'):
+        DISPLAY.show_now("Feeding %d secs" % feedings[0]["feed_duration"], "%.1fg of %s" % (feedings[0]["feed_per_feeding"], feedings[0]["feed_type"]))
+        FEEDER.feed_fish(feedings[0]["feed_duration"], feedings[0]["feed_per_feeding"], feedings[0]["feed_type"], HW.tank1_fish_feeder)
+        MQTT.publish_feeding("Main",feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
+    elif (tank == 'nursery'):
+        DISPLAY.show_now("Feeding %d secs" % feedings[1]["feed_duration"], "%.1fg of %s" % (feedings[1]["feed_per_feeding"], feedings[1]["feed_type"]))
+        FEEDER.feed_fish(feedings[1]["feed_duration"], feedings[1]["feed_per_feeding"], feedings[1]["feed_type"], HW.tank2_fish_feeder)
+        MQTT.publish_feeding("Nursery",feedings[1]["feed_type"], feedings[1]["feed_per_feeding"])
+    else:
+        logging.warning("Unknown tank %s" % tank)
+
+#
 # MAIN
 #
+
+# Subscribe to MQTT messages
+mqtt_client = MQTT.init((("state/cmd",state_cmd),("pump/cmd",pump_cmd),("airpump/cmd",airpump_cmd),("feeder/+/cmd",feeder_cmd)))
+
 while True:
     (feedings[0]["day_number"],feedings[0]["feed_type"],feedings[0]["feed_today"],feedings[0]["feed_per_feeding"],feedings[0]["feed_duration"]) = FEEDER.get_feeding(config.TANK1_START_DATE,config.TANK1_FISH_COUNT,len(config.TANK1_FEED_TIMES),config.TANK1_FEED_RATES)
     (feedings[1]["day_number"],feedings[1]["feed_type"],feedings[1]["feed_today"],feedings[1]["feed_per_feeding"],feedings[1]["feed_duration"]) = FEEDER.get_feeding(config.TANK2_START_DATE,config.TANK2_FISH_COUNT,len(config.TANK2_FEED_TIMES),config.TANK2_FEED_RATES)
@@ -215,10 +286,7 @@ while True:
         # Turn on the fish feeder for the calculated time
         #
         FEEDER.feed_fish(feedings[0]["feed_duration"], feedings[0]["feed_per_feeding"], feedings[0]["feed_type"], HW.tank1_fish_feeder)
-        DLOG.dweet_update_feeding(feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
-        GLOG.update_feeding_log(feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
-	RLOG.update_feeding_log(feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
-
+        MQTT.publish_feeding("Main", feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
         feedings[0]["last_feeding"] = nowtime
 
     # NURSERY TANK
@@ -234,44 +302,31 @@ while True:
         # Turn on the fish feeder for the calculated time
         #
         FEEDER.feed_fish(feedings[1]["feed_duration"], feedings[1]["feed_per_feeding"], feedings[1]["feed_type"], HW.tank2_fish_feeder)
-        DLOG.dweet_update_feeding(feedings[1]["feed_type"], feedings[1]["feed_per_feeding"])
-        GLOG.update_feeding_log(feedings[1]["feed_type"], feedings[1]["feed_per_feeding"])
-        RLOG.update_feeding_log(feedings[1]["feed_type"], feedings[1]["feed_per_feeding"])
-
+        MQTT.publish_feeding("Nursery", feedings[1]["feed_type"], feedings[1]["feed_per_feeding"])
         feedings[1]["last_feeding"] = nowtime
 
-    #
     # Check for key presses
-    #
 
     if DISPLAY.is_select_pressed():
         logging.info("Select button pressed")
-        DISPLAY.show_now("Feeding %d secs" % feedings[0]["feed_duration"], "%.1fg of %s" % (feedings[0]["feed_per_feeding"], feedings[0]["feed_type"]))
-        FEEDER.feed_fish(feedings[0]["feed_duration"], feedings[0]["feed_per_feeding"], feedings[0]["feed_type"], HW.tank1_fish_feeder)
-        DLOG.dweet_update_feeding(feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
-        GLOG.update_feeding_log(feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
-	RLOG.update_feeding_log(feedings[0]["feed_type"], feedings[0]["feed_per_feeding"])
-
-    if DISPLAY.is_up_pressed():
+        MQTT.publish_feeder_cmd("main","ON")
+        
+    if DISPLAY.is_up_pressed(): # Turn Pump On
         logging.info("Up button pressed")
-        GPIO.output(HW.water_pump,False)
-	delog = threading.Thread(target=DLOG.dweet_update_equipment, args=(False if GPIO.input(HW.water_pump) else True,False if GPIO.input(HW.air_pump) else True))
-	delog.start()
+        MQTT.publish_pump_cmd("ON")
 
-    if DISPLAY.is_down_pressed():
+    if DISPLAY.is_down_pressed(): # Turn Pump Off
         logging.info("Down button pressed")
-        GPIO.output(HW.water_pump,True)
-	delog = threading.Thread(target=DLOG.dweet_update_equipment, args=(False if GPIO.input(HW.water_pump) else True,False if GPIO.input(HW.air_pump) else True))
-	delog.start()
+        MQTT.publish_pump_cmd("OFF")
 
-    if DISPLAY.is_left_pressed():
+    if DISPLAY.is_left_pressed(): # Turn airpump Off
         logging.info("Left button pressed")
-        GPIO.output(HW.air_pump,True)
-	delog = threading.Thread(target=DLOG.dweet_update_equipment, args=(False if GPIO.input(HW.water_pump) else True,False if GPIO.input(HW.air_pump) else True))
-	delog.start()
+        MQTT.publish_airpump_cmd("OFF")
 
-    if DISPLAY.is_right_pressed():
+    if DISPLAY.is_right_pressed(): # Turn airpump On
         logging.info("Right button pressed")
-        GPIO.output(HW.air_pump,False)
-	delog = threading.Thread(target=DLOG.dweet_update_equipment, args=(False if GPIO.input(HW.water_pump) else True,False if GPIO.input(HW.air_pump) else True))
-	delog.start()
+        MQTT.publish_airpump_cmd("ON")
+
+    # Check for any MQTT messages to send or process
+
+    mqtt_client.loop()
